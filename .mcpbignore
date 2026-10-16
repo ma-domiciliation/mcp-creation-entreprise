@@ -1,0 +1,13 @@
+.git/
+site/
+specs/
+scripts/
+.github/
+.e2e/
+*.mcpb
+.env
+docs/
+test-specimens/
+remarques.md
+Procfile
+public/

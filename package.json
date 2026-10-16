@@ -1,0 +1,59 @@
+{
+  "name": "@ma-domiciliation/mcp",
+  "version": "1.0.0",
+  "description": "MCP server to create a French company (SASU, SAS, SARL, EURL, SCI) with a registered office at ma-domiciliation.fr — from Claude Code, Claude Desktop, ChatGPT or any MCP client. Hosted (Streamable HTTP) or local (stdio); thin client of the ma-domiciliation.fr /api/mcp-creation API.",
+  "type": "module",
+  "bin": {
+    "madom-mcp": "index.js",
+    "madom-mcp-http": "server-http.js"
+  },
+  "main": "index.js",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "index.js",
+    "manifest.json",
+    "server-http.js",
+    "src/"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "start:http": "node server-http.js",
+    "test": "node scripts/smoke.mjs",
+    "build:mcpb": "npx -y @anthropic-ai/mcpb pack . madom-mcp.mcpb"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "chatgpt",
+    "company-creation",
+    "creation-entreprise",
+    "domiciliation",
+    "france",
+    "sasu",
+    "sas",
+    "apple-developer",
+    "indie-hacker",
+    "saas"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ma-domiciliation/mcp-creation-entreprise"
+  },
+  "homepage": "https://mcp.ma-domiciliation.fr",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "pdf-lib": "^1.17.1",
+    "zod": "^3.24.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

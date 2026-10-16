@@ -1,0 +1,59 @@
+# Workflow du dépôt public mcp-creation-entreprise, exporté tel quel par le dépôt privé (scripts/publier-public.sh)
+# avec chaque version. Il publie à chaque tag `v*` poussé par cet export :
+#   1. npm       : `npm publish` de @ma-domiciliation/mcp avec provenance (trusted publishing, sans jeton) ;
+#                  la provenance relie le paquet au commit de ce dépôt public.
+#   2. extension : extension Claude Desktop (.mcpb) attachée à la release GitHub du tag ; lien stable
+#                  https://github.com/ma-domiciliation/mcp-creation-entreprise/releases/latest/download/madom-mcp.mcpb
+#
+# Les tests ont tourné dans le dépôt privé avant l'export (ils ont besoin de spécimens qui restent privés).
+# Une version déjà présente sur npm (première version publiée à la main pour pouvoir déclarer le trusted
+# publisher) n'est pas republiée : le job npm passe, la release et l'extension sont quand même produites.
+# Prérequis (une fois) : npmjs.com, réglages du paquet → Trusted publishers → GitHub Actions,
+# dépôt ma-domiciliation/mcp-creation-entreprise, workflow publish.yml.
+name: Publier
+on:
+  push:
+    tags: ['v*']
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Le tag correspond à la version de package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME ≠ version $VERSION" >&2; exit 1; }
+      - run: npm install -g npm@latest   # trusted publishing exige npm ≥ 11.5.1
+      - run: npm ci --ignore-scripts
+      - name: Publier, sauf si cette version est déjà sur npm (amorçage manuel du paquet)
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "$NAME@$VERSION" version 2>/dev/null)" ]; then
+            echo "$NAME@$VERSION est déjà publié : publication sautée, la release continue."
+          else
+            npm publish --access public --provenance
+          fi
+  extension:
+    runs-on: ubuntu-latest
+    needs: npm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - run: npx -y @anthropic-ai/mcpb validate manifest.json
+      - run: npm run build:mcpb
+      - run: gh release create "$GITHUB_REF_NAME" madom-mcp.mcpb --title "$GITHUB_REF_NAME" --generate-notes || gh release upload "$GITHUB_REF_NAME" madom-mcp.mcpb --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
