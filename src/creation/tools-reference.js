@@ -4,7 +4,7 @@
 import { z } from 'zod'
 
 import { get, post, getJuridicForms, getDossierSchema } from './api.js'
-import { run, LocalError } from './run.js'
+import { run, LocalError, LECTURE } from './run.js'
 import { summarizeQuote } from './summary.js'
 
 const listCentres = async () => {
@@ -95,6 +95,7 @@ const devisCreation = async ({ juridicForm, product, paymentInterval }) => {
 
 const registerReferenceTools = server => {
   server.registerTool('lister_centres', {
+    annotations: LECTURE,
     title: 'Centres de domiciliation disponibles',
     description: 'Liste les centres de domiciliation (id, nom, adresse) acceptant une création de société. ' +
       'Le prix est le même pour tous : l\'annoncer avec devis_creation.',
@@ -102,6 +103,7 @@ const registerReferenceTools = server => {
   }, run(listCentres))
 
   server.registerTool('rechercher_activites', {
+    annotations: LECTURE,
     title: 'Rechercher une activité dans le catalogue',
     description: 'Recherche les rédactions d\'activité du catalogue ma-domiciliation.fr à partir d\'une description libre ' +
       '(ex. « développement d\'une application mobile »). Renvoie des items { label, redaction, nature, reglementee, justificatif, category, score }. ' +
@@ -113,6 +115,7 @@ const registerReferenceTools = server => {
   }, run(rechercherActivites))
 
   server.registerTool('schema_dossier', {
+    annotations: LECTURE,
     title: 'Schéma du dossier de création',
     description: 'Catalogue complet des champs du dossier (sections siege, dirigeant, associes, societe, objet, fiscalite, capital, capitalDeposit, ' +
       'plus account et partners) avec types, options, conditions et exemples, et le détail des formes juridiques (régimes fiscaux, TVA, clôture). ' +
@@ -124,6 +127,7 @@ const registerReferenceTools = server => {
   }, run(schemaDossier))
 
   server.registerTool('devis_creation', {
+    annotations: LECTURE,
     title: 'Devis de création de société',
     description: 'Calcule le devis réel (montants Stripe du site) pour une forme juridique et un produit : ' +
       '`domiciliation` (siège chez ma-domiciliation : mensuel, annuel ou engagement 2 / 3 ans) ou `basic` (création seule : frais légaux seuls, paiement unique). ' +

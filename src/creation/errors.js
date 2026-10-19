@@ -54,7 +54,7 @@ const MESSAGES = {
   DOSSIER_FINALIZED: () => 'Dossier déjà finalisé : plus aucune modification possible via modifier_dossier. Le suivi se fait sur le site (links.customerArea).',
   PAYLOAD_TOO_LARGE: () => 'Corps de requête trop volumineux (limite 100 ko en JSON, 20 Mo par pièce). Réduire les données envoyées.',
   UNSUPPORTED_JURIDIC_FORM: err => `Forme juridique non prise en charge. Formes possibles : ${(err.details?.supported || []).join(', ') || 'voir schema_dossier'}.`,
-  DOSSIER_INCOMPLETE: err => `Dossier incomplet : ${err.message} Utiliser completer_dossier (ou modifier_dossier) avant ouvrir_paiement.`,
+  DOSSIER_INCOMPLETE: err => `Dossier incomplet : ${err.message} Utiliser modifier_dossier (ou completer_dossier en local) avant de demander le lien de paiement.`,
   RATE_LIMITED: err => `Trop de requêtes (limite de l'API). Réessayer dans ${err.retryAfter ? `${err.retryAfter} s` : 'quelques minutes'}.`,
   // Limiteur de création de lead du site (même sens que RATE_LIMITED, autre code).
   TOO_MANY_REQUESTS: () => 'Trop de dossiers créés depuis cette adresse ou ce numéro de téléphone (limite anti-abus du site). Réessayer plus tard ou terminer sur le site.',

@@ -3,7 +3,7 @@
 import { z } from 'zod'
 
 import { post, isApiError } from './api.js'
-import { run, LocalError } from './run.js'
+import { run, LocalError, ECRITURE, LECTURE } from './run.js'
 import { buildGuide, buildPromptText } from './guide.js'
 import { buildProfileValidationBody, FOUNDER_TO_DIRIGEANT, FISCALITE_KEYS } from './prefill.js'
 import { readProfile, writeProfile, profilePath } from '../profile.js'
@@ -128,6 +128,7 @@ const registerProfilTools = (server, store) => {
   const local = store.mode === 'local'
   const guide = buildGuide(store.mode)
   server.registerTool('guide_creation', {
+    annotations: LECTURE,
     title: 'Guide de création de société (à appeler en premier)',
     description: 'Déroulé complet à suivre par l\'assistant pour créer une société avec ma-domiciliation.fr : questions initiales, ' +
       'pièces à lire et champs à extraire, siège, création du dossier et questions restantes, récapitulatif avec devis et hypothèses, ' +
@@ -146,6 +147,7 @@ const registerProfilTools = (server, store) => {
   if (!local) return
 
   server.registerTool('enregistrer_profil_fondateur', {
+    annotations: ECRITURE,
     title: 'Enregistrer mon profil fondateur (une fois pour toutes les sociétés)',
     description: 'Enregistre LOCALEMENT (~/.madom/profil.json) l\'identité du dirigeant et ses préférences, fusionnées champ par champ ' +
       'avec le profil existant (null efface). Les formats sont vérifiés par l\'API (dry-run) : erreursFormat liste ce qui est à corriger ; ' +
@@ -165,12 +167,14 @@ const registerProfilTools = (server, store) => {
   }, run(enregistrerProfil))
 
   server.registerTool('voir_profil_fondateur', {
+    annotations: LECTURE,
     title: 'Voir le profil fondateur enregistré',
     description: 'Affiche le profil fondateur local (identité, préférences) ou indique qu\'il n\'existe pas.',
     inputSchema: {},
   }, run(voirProfil))
 
   server.registerTool('enregistrer_pieces_kyc', {
+    annotations: ECRITURE,
     title: 'Enregistrer une pièce justificative (dirigeant ou associé)',
     description: 'Copie LOCALEMENT (~/.madom/kyc/) une pièce dans son format d\'origine (PDF, JPEG ou PNG) avec son type de document, ' +
       'pour l\'envoyer ensuite à chaque dossier avec envoyer_piece (conversion en PDF automatique si la pièce l\'exige). ' +
@@ -183,6 +187,7 @@ const registerProfilTools = (server, store) => {
   }, run(enregistrerPiece))
 
   server.registerTool('chercher_pieces', {
+    annotations: LECTURE,
     title: 'Chercher des justificatifs sur ce poste (après accord du client)',
     description: 'À n\'appeler qu\'après l\'accord explicite du client, quand une pièce manque et qu\'il accepte que l\'assistant la cherche sur son poste : ' +
       `liste tous les fichiers PDF, JPEG ou PNG (d'après leur contenu) de ses dossiers usuels (${DOSSIERS_PAR_DEFAUT.join(', ')}) ou des dossiers qu'il indique, ` +
@@ -199,6 +204,7 @@ const registerProfilTools = (server, store) => {
   }, run(chercherPiecesOutil))
 
   server.registerTool('mes_societes', {
+    annotations: LECTURE,
     title: 'Mes dossiers de création connus sur ce poste',
     description: 'Liste le profil (résumé), les pièces KYC enregistrées et les dossiers de création ouverts depuis ce poste ' +
       '(dénomination, publicToken, statut, liens), sans aucun secret.',

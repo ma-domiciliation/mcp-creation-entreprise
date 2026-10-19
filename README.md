@@ -32,6 +32,15 @@ claude mcp add --transport http ma-domiciliation https://mcp.ma-domiciliation.fr
 Claude Desktop, Claude web ou ChatGPT : ajouter un connecteur MCP distant avec la même URL
 `https://mcp.ma-domiciliation.fr/mcp`, sans authentification.
 
+**ChatGPT** : le connecteur fonctionne, mais ChatGPT applique un filtre de sécurité à chaque appel d'outil
+vers un connecteur ajouté à la main, et refuse par précaution certains appels avant qu'ils n'atteignent le
+serveur (« This tool call was blocked by OpenAI's safety checks »). Ce filtre réagit aux données
+personnelles que le parcours transmet par nature (adresse, identité, coordonnées) : nous l'avons vu bloquer
+l'envoi d'un simple code postal comme la demande du lien de paiement, de façon intermittente. Rien côté
+serveur ne le lève. Pour le parcours complet, préférez Claude (Claude Code, Claude Desktop ou Claude web).
+Dans ChatGPT, l'assistant peut toujours vous donner le lien de paiement figurant dans la dernière réponse du
+dossier ; si un appel est refusé, reformulez ou reprenez le dossier dans Claude avec votre code de reprise.
+
 Le serveur hébergé est **sans état** : il ne stocke rien. Le jeton renvoyé à l'ouverture du dossier
 identifie ce dossier pour la suite de la conversation ; l'assistant vous le donne une fois comme
 **code de reprise** (gardez-le pour vous : il permet de reprendre le dossier dans une autre
@@ -79,7 +88,7 @@ s'y rattachent au lieu de relancer une sonde.
 2. **Vos pièces** — l'assistant lit votre CNI ou passeport et votre justificatif de domicile **sur votre poste** et en extrait les champs ; le fichier n'est jamais transmis au serveur. Il lit les fichiers que vous lui désignez ; si une pièce manque, il vous **propose** de la chercher dans vos dossiers usuels (Téléchargements, Bureau, Documents, ou le dossier que vous indiquez) et ne le fait qu'avec votre accord : il ouvre alors les fichiers de ces dossiers pour reconnaître la pièce (même si le nom du fichier ne dit rien), vous dit ce qu'il a trouvé et attend votre confirmation avant de l'utiliser. En local, **`chercher_pieces`** liste ces fichiers sans en lire aucun. En local, **`enregistrer_profil_fondateur`** (une fois) et **`enregistrer_pieces_kyc`** les conservent pour toutes vos sociétés.
 3. **`lister_centres`**, **`rechercher_activites`**, **`schema_dossier`**, **`devis_creation`** — référentiels et devis réel de l'API (lignes, montant du jour, récurrence, mois offerts). L'accompagnement à la création est offert : vous payez les frais légaux et, si vous prenez le siège, la domiciliation — mensuelle, annuelle, ou avec engagement 2 ou 3 ans (`paymentInterval` `month`, `year`, `2years`, `3years`), les cadences annuelles étant remisées sur la première échéance. Pour une domiciliation, `devis_creation` renvoie aussi `cadences`, le comparatif des quatre cadences (échéance et remise sur la première échéance), que l'agent détaille au client quand il annonce le prix. Le prix n'est pas annoncé dans les premiers échanges : il vient avec la proposition de siège, dans le récapitulatif, ou dès que le client le demande.
 4. **`creer_societe`** — ouvre le dossier dès que forme, nom, email, téléphone et siège sont connus ; l'API complète avec les réponses les plus courantes (`assumptions`, annoncées au client). Les questions restantes sont posées dans la conversation (ou par formulaire avec **`completer_dossier`** en local) ; **`modifier_dossier`** envoie les corrections et la réponse à la question Dougs ; **`valider_dossier`** fait un essai à blanc ; **`statut_dossier`** donne l'état, le récapitulatif complet et les prochaines actions.
-5. **`ouvrir_paiement`** : l'assistant termine sa réponse avec le lien exact (ou la page ouverte, en local) et attend votre retour ; `statut_dossier attendre=paiement` au tour suivant, quand vous dites avoir payé ou quand Claude Code signale la fin de la page. En local : **`ouvrir_mot_de_passe`**, puis **`envoyer_piece`** pour chaque pièce demandée (vérifiée par Netheos pour un dossier domicilié) et **`deposer_capital`** (Qonto ou banque). En hébergé : la suite se fait sur le site.
+5. **`lien_paiement`** (hébergé) ou **`ouvrir_paiement`** (local) : l'assistant termine sa réponse avec le lien exact (ou la page ouverte, en local) et attend votre retour ; `statut_dossier attendre=paiement` au tour suivant, quand vous dites avoir payé ou quand Claude Code signale la fin de la page. En hébergé, l'outil ne fait que lire le dossier et le devis et renvoyer le lien ; le même lien figure dans chaque réponse d'un dossier complet non payé (`paiement.lien`, `links.paymentPage`), si bien que l'assistant peut vous le donner même quand son client MCP refuse l'appel (voir la note ChatGPT de l'installation). En local : **`ouvrir_mot_de_passe`**, puis **`envoyer_piece`** pour chaque pièce demandée (vérifiée par Netheos pour un dossier domicilié) et **`deposer_capital`** (Qonto ou banque). En hébergé : la suite se fait sur le site.
 6. En local, **`mes_societes`** liste les dossiers ouverts depuis ce poste (nom, `publicToken`, statut, liens), sans secret.
 
 Une société = un compte ma-domiciliation : chaque dossier reçoit un alias `prenom+nom-de-la-societe@…`. Un seul dossier non payé par email : un nouveau `creer_societe` sur l'email d'un dossier non payé le remplace (ancien jeton révoqué, ancien lien de paiement mort, warning `PENDING_SUPERSEDED`) ; c'est la voie de reprise quand le code est perdu.
@@ -89,10 +98,13 @@ Une société = un compte ma-domiciliation : chaque dossier reçoit un alias `pr
 | Outil | Hébergé | Local |
 |---|---|---|
 | `guide_creation`, `lister_centres`, `rechercher_activites`, `schema_dossier`, `devis_creation` | oui | oui |
-| `valider_dossier`, `creer_societe`, `statut_dossier`, `modifier_dossier`, `ouvrir_paiement` | oui (paramètre `jeton`) | oui (paramètre `societe`) |
+| `valider_dossier`, `creer_societe`, `statut_dossier`, `modifier_dossier` | oui (paramètre `jeton`) | oui (paramètre `societe`) |
+| Lien de paiement | `lien_paiement` (lecture seule : renvoie le lien) | `ouvrir_paiement` (ouvre la page, ou donne le lien) |
 | `completer_dossier` (formulaires d'elicitation) | — | oui |
 | `enregistrer_profil_fondateur`, `voir_profil_fondateur`, `enregistrer_pieces_kyc`, `chercher_pieces`, `mes_societes` | — | oui |
 | `ouvrir_mot_de_passe`, `envoyer_piece`, `deposer_capital` | — (sur le site) | oui |
+
+Chaque outil porte les annotations MCP `readOnlyHint`, `destructiveHint`, `idempotentHint` et `openWorldHint` (lecture seule partout où rien n'est écrit ; rien n'est jamais détruit ; tout passe par l'API de ma-domiciliation.fr).
 
 ## Ce que ce serveur ne fait pas — volontairement
 

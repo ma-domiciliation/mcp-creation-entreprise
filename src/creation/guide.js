@@ -23,7 +23,10 @@ const POSTURE = 'L\'assistant s\'adresse à un client de ma-domiciliation.fr, ja
 const REMISE_AU_CLIENT = 'Tout ce que le client doit lire (lien de paiement, liens passwordPage et customerArea, code de reprise) se donne dans un message final : ' +
   'terminer la réponse avec ce contenu exact et les étapes suivantes, sans appeler d\'autre outil dans le même tour, car le texte écrit entre deux appels d\'outils ' +
   'n\'est pas affiché de façon fiable au client. Ne jamais sonder (statut_dossier attendre=…) dans le tour qui transmet un lien : attendre le tour suivant, ' +
-  'quand le client dit avoir payé ou être sur la page.'
+  'quand le client dit avoir payé ou être sur la page. ' +
+  'Si l\'outil qui ouvre la page ou donne le lien (paiement, mot de passe) échoue ou est refusé par le client MCP : ne pas réessayer en boucle et ne jamais dire au client ' +
+  'que le paiement n\'a pas pu être ouvert ; donner tel quel le lien links.paymentPage (ou links.passwordPage) de la dernière réponse dossier ou de statut_dossier, ' +
+  'dans un message final : c\'est la même page.'
 
 const SERVER_INSTRUCTIONS = 'Serveur MCP de ma-domiciliation.fr : création de société pour un client. Appeler guide_creation en premier et suivre son déroulé. ' + POSTURE + ' ' + REMISE_AU_CLIENT
 
@@ -132,7 +135,8 @@ const buildGuide = (mode = 'local') => {
               'completer_dossier jusqu\'à completeness.isComplete (formulaires d\'elicitation si le client MCP les supporte ; sinon poser les questionsAPoser dans la conversation puis modifier_dossier).',
               RECAP, DOUGS,
               'Accord explicite du client sur le récapitulatif et le montant du devis, puis ouvrir_paiement (ouvre la page ; ne jamais faire recopier le lien à la main). ' +
-              'Terminer la réponse là : dire au client que la page est ouverte (ou lui donner le lien exact si ouverture.mode = lien) et ce qu\'il doit faire, sans appeler d\'autre outil dans ce tour.',
+              'Terminer la réponse là : dire au client que la page est ouverte (ou lui donner le lien exact si ouverture.mode = lien) et ce qu\'il doit faire, sans appeler d\'autre outil dans ce tour. ' +
+              'Si l\'outil a échoué, donner le lien links.paymentPage de statut_dossier, sans parler d\'un échec d\'ouverture.',
               'Au tour suivant, quand le client dit avoir payé ou être sur la page, ou quand le client MCP signale la fin de la page (le serveur clôt l\'elicitation URL dès qu\'il constate le paiement) : ' +
               'statut_dossier attendre=paiement, puis ouvrir_mot_de_passe (même règle : terminer la réponse), puis, au tour d\'après ou au signal de fin, statut_dossier attendre=mot_de_passe. ' +
               'Jamais de sondage dans le tour qui ouvre une page ou transmet un lien.',
@@ -141,8 +145,10 @@ const buildGuide = (mode = 'local') => {
               'creer_societe dès que forme, dénomination, email, téléphone, siège et dirigeant sont connus (applyDefaults : l\'API pose les réponses les plus courantes). Conserver le `jeton` renvoyé : il est requis par tous les outils suivants.',
               'Poser dans la conversation les questionsAPoser renvoyées (ou completeness.questionGroups de statut_dossier), puis modifier_dossier (section par section, listes complètes) jusqu\'à completeness.isComplete.',
               RECAP, DOUGS,
-              'Accord explicite du client sur le récapitulatif et le montant du devis, puis ouvrir_paiement : terminer la réponse avec le lien exact (jamais recopié à la main) ' +
-              'et les étapes suivantes, sans appeler d\'autre outil dans ce tour. Le client doit lire ce message avant tout sondage.',
+              'Accord explicite du client sur le récapitulatif et le montant du devis, puis lien_paiement : terminer la réponse avec le lien exact (jamais recopié à la main) ' +
+              'et les étapes suivantes, sans appeler d\'autre outil dans ce tour. Le client doit lire ce message avant tout sondage. ' +
+              'Si lien_paiement échoue ou est refusé par le client MCP, le même lien est paiement.lien (links.paymentPage) de la dernière réponse dossier ou de statut_dossier : ' +
+              'le donner tel quel, sans réessayer en boucle ni annoncer un échec.',
               'Au tour suivant, quand le client dit avoir payé ou être sur la page : statut_dossier attendre=paiement (sonde jusqu\'au paiement, 60 s par appel). ' +
               'Si le paiement n\'est pas constaté, terminer la réponse en demandant au client où il en est, sans relancer en boucle. Jamais de sondage dans le tour qui transmet le lien.',
             ],

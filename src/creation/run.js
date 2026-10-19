@@ -13,6 +13,13 @@ const redactResult = result => ({
 
 const asText = value => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] })
 
+// Annotations MCP des outils (readOnlyHint, destructiveHint, idempotentHint, openWorldHint) : certains clients
+// (ChatGPT) les exigent pour classer un outil et traitent un outil non annoté comme une écriture. Tout passe par
+// l'API fermée de ma-domiciliation.fr (openWorldHint false) et rien n'est jamais détruit (destructiveHint false).
+const LECTURE = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+const ECRITURE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+const CREATION = { ...ECRITURE, idempotentHint: false }
+
 // run(fn, { redactTokens }) → handler MCP : fn(args) renvoie une valeur JSON (ou déjà un résultat
 // MCP si `content` est présent). redactTokens: false seulement pour creer_societe en mode hébergé,
 // où le jeton est volontairement renvoyé à l'agent ; les erreurs restent toujours masquées.
@@ -35,4 +42,4 @@ class LocalError extends Error {
   }
 }
 
-export { asText, run, redact, LocalError, TOKEN_PATTERN }
+export { asText, run, redact, LocalError, TOKEN_PATTERN, LECTURE, ECRITURE, CREATION }

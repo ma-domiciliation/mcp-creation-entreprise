@@ -54,11 +54,12 @@ const attendreCloture = async (clotures, attendu, maxMs = 20000) => {
   }
 }
 
-const startSession = async ({ apiUrl, home, elicitation, urls, clotures = [] }) => {
+// urlAction.action : réponse du client aux elicitations URL (accept par défaut ; decline / cancel = page refusée).
+const startSession = async ({ apiUrl, home, elicitation, urls, clotures = [], urlAction = { action: 'accept' } }) => {
   const client = new Client({ name: 'smoke', version: '0' }, { capabilities: elicitation ? { elicitation: { form: {}, url: {} } } : {} })
   if (elicitation) {
     client.setRequestHandler(ElicitRequestSchema, async req => {
-      if (req.params.mode === 'url') { urls.push(req.params.url); return { action: 'accept' } }
+      if (req.params.mode === 'url') { if (urlAction.action === 'accept') urls.push(req.params.url); return { action: urlAction.action } }
       return { action: 'accept', content: autoAnswer(req.params.requestedSchema.properties) }
     })
     client.setNotificationHandler(ElicitationCompleteNotificationSchema, n => { clotures.push(n.params.elicitationId) })
@@ -98,6 +99,15 @@ const startHttpSession = async url => {
   return { client, call, ok, ko }
 }
 
+// Annotations MCP : les trois indicateurs exigés par ChatGPT sur chaque outil, lecture seule là où rien n'est écrit.
+const checkAnnotations = tools => {
+  for (const t of tools) for (const k of ['readOnlyHint', 'destructiveHint', 'openWorldHint']) assert.equal(typeof t.annotations?.[k], 'boolean', `${t.name} sans annotation ${k}`)
+  const byName = Object.fromEntries(tools.map(t => [t.name, t.annotations]))
+  assert.equal(byName.statut_dossier.readOnlyHint, true); assert.equal(byName.creer_societe.readOnlyHint, false); assert.equal(byName.creer_societe.idempotentHint, false)
+  assert.ok(tools.every(t => t.annotations.destructiveHint === false && t.annotations.openWorldHint === false), 'destructiveHint / openWorldHint doivent être false')
+  for (const name of ['lien_paiement', 'ouvrir_paiement', 'ouvrir_mot_de_passe']) if (byName[name]) assert.equal(byName[name].readOnlyHint, true, `${name} en lecture seule`)
+}
+
 const hook = (apiUrl, p) => fetch(`${apiUrl}${p}`, { method: 'POST' }).then(r => assert.equal(r.status, 200, `hook ${p}`))
 const stats = apiUrl => fetch(`${apiUrl}/__test/stats`).then(r => r.json())
 
@@ -107,6 +117,7 @@ const commonChecks = async ({ client, ok, ko }, home, apiUrl) => {
   assert.equal(tools.length, 19, `19 outils attendus, ${tools.length} trouvés`)
   for (const t of ['guide_creation', 'enregistrer_profil_fondateur', 'voir_profil_fondateur', 'enregistrer_pieces_kyc', 'chercher_pieces', 'mes_societes', 'lister_centres', 'rechercher_activites', 'schema_dossier', 'devis_creation', 'valider_dossier', 'creer_societe', 'completer_dossier', 'statut_dossier', 'modifier_dossier', 'ouvrir_paiement', 'ouvrir_mot_de_passe', 'envoyer_piece', 'deposer_capital']) assert.ok(tools.includes(t), `outil manquant : ${t}`)
   assert.ok(!tools.includes('domicilier_societe') && !tools.includes('devis_domiciliation'), 'outils /v1 présents')
+  checkAnnotations((await client.listTools()).tools)
   assert.deepEqual((await client.listPrompts()).prompts.map(p => p.name), ['creer-ma-societe'])
   const guide = await ok('guide_creation'); assert.equal(guide.etapes.length, 6); assert.doesNotMatch(JSON.stringify(guide), /\d\s?€/, 'montant dans le guide')
   step = 'posture'
@@ -199,7 +210,8 @@ const commonChecks = async ({ client, ok, ko }, home, apiUrl) => {
 const passA = async (apiUrl, home) => {
   const urls = []
   const clotures = []
-  const s = await startSession({ apiUrl, home, elicitation: true, urls, clotures })
+  const urlAction = { action: 'accept' }
+  const s = await startSession({ apiUrl, home, elicitation: true, urls, clotures, urlAction })
   const { ok, ko } = s
   await commonChecks(s, home, apiUrl)
   const activite = (await ok('rechercher_activites', { q: 'logiciel' })).items[0].redaction
@@ -241,7 +253,12 @@ const passA = async (apiUrl, home) => {
 
   step = 'A/paiement'
   await ko('ouvrir_mot_de_passe', {}, /pas encore payé/)
-  r = await ok('ouvrir_paiement'); assert.equal(r.status, 'unpaid'); assert.equal(r.ouverture.mode, 'elicitation'); assert.equal(urls.at(-1), r.paymentUrl); assert.match(r.paymentUrl, new RegExp(`/creation-mcp/paiement/${pt}$`)); assert.match(r.quote.resume, /1 mois offert/)
+  // Elicitation URL refusée par le client : pas de page ouverte ni de veille, le lien est à donner tel quel sans parler d'échec.
+  urlAction.action = 'decline'; const urlsAvant = urls.length
+  r = await ok('ouvrir_paiement'); assert.equal(r.status, 'unpaid'); assert.equal(r.ouverture.mode, 'lien'); assert.equal(r.ouverture.elicitation, 'decline'); assert.equal(r.ouverture.cloture, undefined)
+  assert.equal(urls.length, urlsAvant); assert.match(r.suite, /lien exact paymentUrl/); assert.doesNotMatch(r.suite, /page est ouverte/); assert.match(r.ouverture.consigne, /n'a pas pu être ouverte/); assert.equal(r.paiement, undefined, 'paiement.lien réservé au mode hébergé')
+  urlAction.action = 'accept'
+  r = await ok('ouvrir_paiement'); assert.equal(r.status, 'unpaid'); assert.equal(r.ouverture.mode, 'elicitation'); assert.match(r.suite, /page est ouverte/); assert.equal(urls.at(-1), r.paymentUrl); assert.match(r.paymentUrl, new RegExp(`/creation-mcp/paiement/${pt}$`)); assert.match(r.quote.resume, /1 mois offert/)
   assert.match(r.suite, /TERMINER LA RÉPONSE MAINTENANT/); assert.match(r.suite, /tour suivant/); assert.match(r.ouverture.consigne, /termine ce tour/)
   assert.match(r.ouverture.cloture, /dès que le paiement est constaté/); assert.equal(clotures.length, 0, 'pas de clôture avant le paiement')
   // Une seule sonde par dossier et événement : un second ouvrir_paiement et statut_dossier attendre=… rejoignent la veille en cours
@@ -326,7 +343,7 @@ const passB = async (apiUrl, home) => {
 }
 
 // ---------------------------------------------------------------- passe C : serveur hébergé (HTTP sans session)
-const HOSTED_TOOLS = ['guide_creation', 'lister_centres', 'rechercher_activites', 'schema_dossier', 'devis_creation', 'valider_dossier', 'creer_societe', 'statut_dossier', 'modifier_dossier', 'ouvrir_paiement']
+const HOSTED_TOOLS = ['guide_creation', 'lister_centres', 'rechercher_activites', 'schema_dossier', 'devis_creation', 'valider_dossier', 'creer_societe', 'statut_dossier', 'modifier_dossier', 'lien_paiement']
 const DIRIGEANT = { gender: 'MR', name: 'Dupont', firstname: 'Jean', birthdate: '12/01/1990', birthCity: 'Paris', birthPostalCode: '75010', nationality: 'Française', maritalStatus: 'Célibataire', fatherName: 'Dupont', fatherFirstname: 'Pierre', motherName: 'Martin', motherFirstname: 'Anne', ownerAddress: '12 rue de Belzunce, 75010 Paris', email: 'jean.dupont@exemple.fr', tel: '0612345678' }
 const TOKEN_FORMAT = /^mcc_[A-Za-z0-9_-]{43}$/
 
@@ -348,11 +365,13 @@ const passC = async apiUrl => {
     step = 'C/inventaire'
     const tools = (await s.client.listTools()).tools.map(t => t.name).sort()
     assert.deepEqual(tools, [...HOSTED_TOOLS].sort(), 'outils du mode hébergé')
+    checkAnnotations((await s.client.listTools()).tools)
     assert.deepEqual((await s.client.listPrompts()).prompts.map(p => p.name), ['creer-ma-societe'])
     const prompt = await s.client.getPrompt({ name: 'creer-ma-societe', arguments: {} }); assert.match(prompt.messages[0].content.text, /code de reprise/)
     const guide = await ok('guide_creation'); const guideText = JSON.stringify(guide)
     assert.equal(guide.etapes.length, 6); assert.match(guideText, /extraction/); assert.match(guideText, /code de reprise/); assert.match(guideText, /tout se passe sur le site/i)
-    assert.doesNotMatch(guideText, /enregistrer_profil_fondateur|enregistrer_pieces_kyc|chercher_pieces|envoyer_piece|deposer_capital|completer_dossier|ouvrir_mot_de_passe|mes_societes/)
+    assert.doesNotMatch(guideText, /enregistrer_profil_fondateur|enregistrer_pieces_kyc|chercher_pieces|envoyer_piece|deposer_capital|completer_dossier|ouvrir_mot_de_passe|ouvrir_paiement|mes_societes/)
+    assert.match(guideText, /lien_paiement échoue ou est refusé par le client MCP/, 'guide hébergé sans le repli vers paiement.lien'); assert.match(s.client.getInstructions() ?? '', /n'a pas pu être ouvert/, 'instructions serveur sans le repli du lien')
     assert.doesNotMatch(guideText, /\d\s?€/, 'montant dans le guide')
     assert.match(guideText, /PROPOSER au client.*accord explicite.*outils de fichiers de l'assistant.*en ouvrant les fichiers/, 'guide hébergé sans la proposition de recherche'); assert.match(prompt.messages[0].content.text, /attends mon accord avant de chercher/); assert.match(prompt.messages[0].content.text, /montre-moi ce que tu as trouvé/)
     assert.match(s.client.getInstructions() ?? '', /remarque de QA/, 'instructions serveur sans la règle de posture'); assert.match(guideText, /remarque de QA/); assert.match(prompt.messages[0].content.text, /comme à un client/)
@@ -376,7 +395,8 @@ const passC = async apiUrl => {
     r = await ok('valider_dossier', { dossier }); assert.match(r.mode, /nouveau dossier/); assert.equal(r.valid, true)
     r = await ok('creer_societe', { dossier }, { allowToken: true })
     assert.equal(r.cree, true); assert.match(r.jeton, TOKEN_FORMAT); assert.match(r.consigne, /code de reprise/); assert.match(r.consigne, /message final/); assert.equal(r.registre, undefined)
-    assert.equal(r.completeness.isComplete, true, JSON.stringify(r.completeness.missing)); assert.match(r.suite, /ouvrir_paiement/)
+    assert.equal(r.completeness.isComplete, true, JSON.stringify(r.completeness.missing)); assert.match(r.suite, /lien_paiement/); assert.doesNotMatch(r.suite, /ouvrir_paiement/)
+    assert.equal(r.paiement.lien, r.links.paymentPage, 'lien de paiement joint au dossier complet'); assert.match(r.paiement.consigne, /sans réessayer en boucle/); assert.match(r.consigne, /lien_paiement/)
     const jeton = r.jeton; const pt = r.societe.publicToken; assert.ok(pt)
     const last = await fetch(`${apiUrl}/__test/last-create`).then(x => x.json())
     assert.equal(last.clientIp, '127.0.0.1', 'IP cliente transmise à l\'API'); assert.equal(last.mcpKey, 'smoke-secret', 'secret partagé transmis à l\'API')
@@ -384,18 +404,20 @@ const passC = async apiUrl => {
     step = 'C/dossier'
     r = await ok('statut_dossier', { jeton }); assert.equal(r.societe.publicToken, pt); assert.equal(r.status, 'ready_for_payment'); assert.ok(r.links.customerArea)
     r = await ok('valider_dossier', { jeton, dossier: { societe: { sigle: 'SH' } } }); assert.equal(r.mode, 'dossier existant'); assert.equal(r.valid, true)
-    r = await ok('modifier_dossier', { jeton, modifications: { partners: { dougs: false } } }); assert.equal(r.completeness.isComplete, true); assert.match(r.suite, /ouvrir_paiement/)
-    r = await ok('modifier_dossier', { jeton, modifications: { objet: { activities: [] } } }); assert.equal(r.completeness.isComplete, false); assert.ok(r.questionsAPoser.length >= 1); assert.match(r.suite, /conversation/)
+    r = await ok('modifier_dossier', { jeton, modifications: { partners: { dougs: false } } }); assert.equal(r.completeness.isComplete, true); assert.match(r.suite, /lien_paiement/); assert.ok(r.paiement.lien)
+    r = await ok('modifier_dossier', { jeton, modifications: { objet: { activities: [] } } }); assert.equal(r.completeness.isComplete, false); assert.ok(r.questionsAPoser.length >= 1); assert.match(r.suite, /conversation/); assert.equal(r.paiement, undefined, 'pas de lien de paiement sur un dossier incomplet')
     r = await ok('modifier_dossier', { jeton, modifications: { objet: { activities: [{ redaction: 'Le conseil aux entreprises', custom: true }] } } }); assert.equal(r.completeness.isComplete, true)
 
     step = 'C/paiement (lien seul)'
-    r = await ok('ouvrir_paiement', { jeton }); assert.equal(r.ouverture.mode, 'lien'); assert.match(r.paymentUrl, new RegExp(pt)); assert.match(r.suite, /customerArea/)
-    assert.match(r.suite, /TERMINER LA RÉPONSE MAINTENANT/); assert.match(r.suite, /tour suivant/); assert.match(r.ouverture.consigne, /termine ce tour/)
+    r = await ok('statut_dossier', { jeton }); assert.equal(r.paiement.lien, r.links.paymentPage); assert.match(r.paiement.consigne, /lien_paiement/)
+    r = await ok('lien_paiement', { jeton }); assert.equal(r.ouverture, undefined, 'rien à ouvrir en hébergé'); assert.match(r.paymentUrl, new RegExp(pt)); assert.match(r.suite, /customerArea/); assert.match(r.suite, /links\.paymentPage/)
+    assert.match(r.suite, /TERMINER LA RÉPONSE MAINTENANT/); assert.match(r.suite, /tour suivant/); assert.match(r.consigne, /termine ce tour/); assert.match(r.consigne, /ne pas le recopier/)
+    await ko('ouvrir_paiement', { jeton })
     r = await ok('statut_dossier', { jeton, attendre: 'paiement', delaiMaxSecondes: 5 }); assert.equal(r.attente.atteint, false); assert.match(r.attente.consigne, /paymentPage/); assert.match(r.attente.consigne, /sans relancer en boucle/)
     await hook(apiUrl, `/__test/pay/${pt}`)
-    r = await ok('statut_dossier', { jeton, attendre: 'paiement', delaiMaxSecondes: 5 }); assert.equal(r.attente.atteint, true); assert.match(r.suite, /passwordPage/); assert.match(r.suite, /customerArea/)
+    r = await ok('statut_dossier', { jeton, attendre: 'paiement', delaiMaxSecondes: 5 }); assert.equal(r.attente.atteint, true); assert.match(r.suite, /passwordPage/); assert.match(r.suite, /customerArea/); assert.equal(r.paiement, undefined, 'plus de lien de paiement une fois payé')
     await ko('statut_dossier', { jeton, attendre: 'mot_de_passe' })
-    r = await ok('ouvrir_paiement', { jeton }); assert.equal(r.status, 'paid'); assert.match(r.suite, /site/)
+    r = await ok('lien_paiement', { jeton }); assert.equal(r.status, 'paid'); assert.match(r.suite, /site/)
 
     step = 'C/limite de créations'
     r = await ok('creer_societe', { dossier: { ...dossier, account: { email: 'jean+smoke-heberge-2@exemple.fr', tel: '0612345678' } } }, { allowToken: true }); assert.match(r.jeton, TOKEN_FORMAT)

@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { run, LocalError } from './run.js'
+import { run, LocalError, ECRITURE } from './run.js'
 import { dossierResponse } from './summary.js'
 import { refreshDossier, uploadDocument, submitCapitalDeposit } from './dossiers.js'
 import { openUrlElicitation } from './elicitation.js'
@@ -93,6 +93,7 @@ const deposerCapital = async (server, store, args) => {
 
 const registerPiecesTools = (server, store) => {
   server.registerTool('envoyer_piece', {
+    annotations: ECRITURE,
     title: 'Envoyer une pièce justificative au dossier',
     description: 'Après paiement : envoie une pièce sur une clé de documents.items (statut_dossier) : owner_id_justif_file (recto, documentType ID_CARD / PASSPORT…), ' +
       'owner_id_justif_file_2 (verso), owner_address_justif_file (justificatif de domicile, documentType), siege_current_address_justif, shareholder:<i>:id_justif_file, statuts_file… ' +
@@ -108,6 +109,7 @@ const registerPiecesTools = (server, store) => {
   }, run(args => envoyerPiece(store, args)))
 
   server.registerTool('deposer_capital', {
+    annotations: ECRITURE,
     title: 'Choisir le dépôt de capital et transmettre le dossier',
     description: 'Après les pièces : choix du dépôt de capital — qonto (ouverture d\'un compte Qonto via le lien renvoyé, à faire par le client) ou banque (banque du client) — ' +
       'et transmission du dossier aux formalistes (statut submitted). Rejouer le même appel sur SALESFORCE_SYNC_FAILED. Les pièces manquantes ou non validées (DOCUMENTS_MISSING, NETHEOS_PIECES_PENDING) sont expliquées dans l\'erreur.',

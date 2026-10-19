@@ -176,7 +176,8 @@ const conversationalFallback = group => {
 const questionsAPoser = groups => (Array.isArray(groups) ? groups.map(conversationalFallback) : [])
 
 const CONSIGNE_LIEN = 'Transmettre ce lien exact au client (ne pas le recopier à la main, ne pas le tronquer) dans le message qui termine ce tour, ' +
-  'sans appeler d\'autre outil avant : le client ne voit pas un texte écrit entre deux appels d\'outils.'
+  'sans appeler d\'autre outil avant : le client ne voit pas un texte écrit entre deux appels d\'outils. ' +
+  'Le lien suffit : ne jamais dire au client que la page (ou le paiement) n\'a pas pu être ouverte.'
 
 // Après l'accept d'une elicitation URL, le client MCP (Claude Code) affiche une attente jusqu'à la
 // notification `notifications/elicitation/complete`. Elle part en arrière-plan, sans bloquer l'outil :
@@ -207,8 +208,10 @@ const openUrlElicitation = async (server, { url, message, lienSeul = false, atte
       const elicitationId = randomUUID()
       const result = await server.server.elicitInput({ mode: 'url', url, message: message || CONSIGNE_LIEN, elicitationId })
       const action = result?.action || 'accept'
+      // Refusée ou annulée par le client : la page n'est pas ouverte, le lien se donne tel quel (pas de navigateur : il a refusé).
+      if (action !== 'accept') return { mode: 'lien', url, consigne: CONSIGNE_LIEN, elicitation: action }
       const out = { mode: 'elicitation', action, url, consigne: CONSIGNE_LIEN }
-      if (action === 'accept' && notifyElicitationCompletion(server, elicitationId, attendre?.fn)) {
+      if (notifyElicitationCompletion(server, elicitationId, attendre?.fn)) {
         out.cloture = attendre?.cloture || 'Elicitation close immédiatement : rien à attendre sur cette page.'
       }
       return out
@@ -225,5 +228,5 @@ const openUrlElicitation = async (server, { url, message, lienSeul = false, atte
 
 export {
   elicitationSupport, buildRequestedSchema, askGroup, answersToPatch, askGroups,
-  conversationalFallback, questionsAPoser, openUrlElicitation, parsePath, coerce, DEFAULT_MAX_GROUPS,
+  conversationalFallback, questionsAPoser, openUrlElicitation, parsePath, coerce, DEFAULT_MAX_GROUPS, CONSIGNE_LIEN,
 }
