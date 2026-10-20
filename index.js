@@ -11,7 +11,7 @@ import { localStore } from './src/creation/store.js'
 import { baseUrl } from './src/creation/api.js'
 import { SERVER_INSTRUCTIONS } from './src/creation/guide.js'
 
-const server = new McpServer({ name: 'ma-domiciliation', version: '1.0.1' }, { instructions: SERVER_INSTRUCTIONS })
+const server = new McpServer({ name: 'ma-domiciliation', version: '1.0.2' }, { instructions: SERVER_INSTRUCTIONS })
 registerCreationTools(server, localStore())
 
 await server.connect(new StdioServerTransport())

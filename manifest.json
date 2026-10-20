@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "madom-mcp",
   "display_name": "ma-domiciliation — création de société",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Créez votre société (SAS, SASU, SARL, EURL, SCI) avec siège chez ma-domiciliation.fr, sans quitter Claude. L’accompagnement à la création est offert : vous ne payez que les frais légaux et la domiciliation, sur le site.",
   "long_description": "Serveur MCP local de ma-domiciliation.fr, client fin de l’API /api/mcp-creation du site : aucune clé, aucun compte préalable, aucun montant ni règle métier embarqués. L’assistant pose les questions, ouvre le dossier (devis, centre de domiciliation, forme juridique, capital, fiscalité), vous récapitule les choix retenus et termine par le lien de paiement. Chaque dossier est identifié par un jeton renvoyé à son ouverture, gardé sur ce poste et donné une fois comme code de reprise. En local, le serveur conserve un profil fondateur réutilisable (~/.madom/profil.json), vos pièces (~/.madom/kyc/) et le registre de vos dossiers ; après paiement il envoie les justificatifs et enregistre le dépôt de capital. Le paiement, le mot de passe, la vérification d’identité et la signature restent vos actes, sur les pages sécurisées du site.",
   "author": {

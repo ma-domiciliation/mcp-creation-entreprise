@@ -1,11 +1,10 @@
 {
   "name": "@ma-domiciliation/mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server to create a French company (SASU, SAS, SARL, EURL, SCI) with a registered office at ma-domiciliation.fr — from Claude Code, Claude Desktop, ChatGPT or any MCP client. Hosted (Streamable HTTP) or local (stdio); thin client of the ma-domiciliation.fr /api/mcp-creation API.",
   "type": "module",
   "bin": {
-    "madom-mcp": "index.js",
-    "madom-mcp-http": "server-http.js"
+    "madom-mcp": "index.js"
   },
   "main": "index.js",
   "files": [
